@@ -19,6 +19,12 @@ A scientifically grounded, cinematic simulation of the real observed binary star
   - Concentric distance reference rings at $0.2$, $0.5$, $1.0$, and $1.5\,\text{AU}$.
 - **Interactive Gravitational Mass Experiment**:
   - Dynamically alter Star B's mass ($M/N$ keys or GUI buttons) and observe the real gravitational response: resonance pumping, eccentricity excitation, close encounters, or interstellar ejection.
+- **Procedural Deep-Space Skybox (Zero-Asset, Zero-VRAM)**:
+  - Scientifically calibrated celestial sphere depicting the Milky Way and deep space as seen from the TOI-1338 system (~1,300 light-years away).
+  - Tilted galactic disc plane with diffuse interstellar dust lanes and galactic core bulge glow.
+  - Multi-frequency ionized emission nebulae: Hydrogen-Alpha ($656.3\,\text{nm}$ deep crimson) and Oxygen-III ($500.7\,\text{nm}$ teal/cyan).
+  - Multi-spectral stellar classification: O/B blue giants, A/F white stars, G-class solar yellows, and M-class red dwarfs, with sub-pixel diffraction spikes on prominent stars.
+  - Dynamic atmospheric extinction: seamlessly emerges above the desert dunes as the double suns set and day turns into night.
 - **Scientific HUD & Live Telemetry Graphs**:
   - Real-time telemetry: simulation days/years, stellar masses, binary separation, orbital eccentricity, Holman & Wiegert (1999) critical stability radius $a_{\text{crit}}$, and combined stellar flux ($S/S_\oplus$).
   - Live vector graphs of combined & individual stellar insolation $S_{\text{tot}}(t)$ and planetary eccentricity $e(t)$.

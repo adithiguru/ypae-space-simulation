@@ -414,6 +414,78 @@ def dune_height(x: ti.f32, z: ti.f32) -> ti.f32:
     rock_mesa = 4.5 / (1.0 + 0.05 * rock_dist * rock_dist)
     return h1 + h2 + h3 + rock_mesa
 
+@ti.func
+def sample_deep_space_skybox(ray_dir) -> ti.types.vector(3, ti.f32):
+    """
+    Procedural Deep-Space Skybox:
+    - Astrophysically calibrated galactic plane orientation & galactic bulge glow
+    - Interstellar dust lanes & multi-frequency H-alpha (crimson) / O-III (teal) emission nebulae
+    - Dense multi-spectral starfield: Class O/B (blue giants), A/F (white), G (yellow), M (red dwarfs)
+    - Foreground bright stars with optical diffraction flares
+    """
+    # 1. Cosmic Void with Galactic Plane Orientation (Milky Way vantage from TOI-1338)
+    mw_normal = ti.Vector([0.35, 0.20, 0.91]).normalized()
+    dist_to_mw = ti.abs(ray_dir.dot(mw_normal))
+    galactic_core_dir = ti.Vector([0.85, -0.45, 0.28]).normalized()
+    core_proximity = ti.max(0.0, ray_dir.dot(galactic_core_dir))
+
+    # Base cosmic black with subtle deep indigo gradient
+    col = ti.Vector([0.004, 0.006, 0.012]) + ti.Vector([0.003, 0.002, 0.008]) * (ray_dir[2] * 0.5 + 0.5)
+
+    # 2. Interstellar Dust & Emission Nebula Bands
+    plane_glow = ti.exp(-dist_to_mw * 4.2)
+    dust_p = ray_dir * 5.5
+    dust_noise1 = ti.sin(dust_p[0] * 1.7 + dust_p[1] * 2.3) * ti.cos(dust_p[1] * 1.9 + dust_p[2] * 2.1)
+    dust_noise2 = ti.sin(dust_p[0] * 3.4 - dust_p[2] * 2.9) * ti.sin(dust_p[1] * 4.1)
+    nebula_m = clamp(0.5 + 0.3 * dust_noise1 + 0.2 * dust_noise2, 0.0, 1.0)
+
+    # Ionized Hydrogen-Alpha (deep crimson) and Oxygen-III (teal) emission clouds
+    nebula_h_alpha = ti.Vector([0.055, 0.012, 0.040]) * (plane_glow * nebula_m * 1.8)
+    nebula_o_iii = ti.Vector([0.010, 0.032, 0.045]) * (plane_glow * (1.0 - nebula_m) * 1.4)
+    bulge_glow = ti.Vector([0.08, 0.055, 0.035]) * ti.pow(core_proximity, 4.0) * plane_glow
+    col += nebula_h_alpha + nebula_o_iii + bulge_glow
+
+    # 3. Dense Multi-Spectral Stellar Field
+    star_dir = ray_dir * 280.0
+    cell = ti.floor(star_dir)
+    star_h1 = fract(ti.sin(cell.dot(ti.Vector([12.9898, 78.233, 45.164]))) * 43758.5453)
+    star_h2 = fract(ti.sin(cell.dot(ti.Vector([93.9898, 23.412, 67.891]))) * 28341.1357)
+
+    if star_h1 > 0.982:  # Populated star cells
+        sub_pos = star_dir - cell
+        star_center = ti.Vector([star_h2, fract(star_h2 * 7.13), fract(star_h2 * 13.97)]) * 0.7 + 0.15
+        d_center = (sub_pos - star_center).norm()
+
+        if d_center < 0.35:
+            intensity = (1.0 - d_center / 0.35) * ti.pow((star_h1 - 0.982) / 0.018, 3.0) * 1.8
+            # Spectral class color:
+            star_col = ti.Vector([0.9, 0.95, 1.0])  # Class A/F White
+            if star_h2 < 0.25:
+                star_col = ti.Vector([0.65, 0.80, 1.0])  # Class O/B Blue Giant
+            elif star_h2 < 0.55:
+                star_col = ti.Vector([1.0, 0.88, 0.65])  # Class G Solar Yellow
+            elif star_h2 < 0.85:
+                star_col = ti.Vector([1.0, 0.45, 0.25])  # Class M Red Dwarf
+            else:
+                star_col = ti.Vector([0.85, 0.95, 1.0])  # White Dwarf
+
+            # Bright prominent stars with optical diffraction flare
+            if star_h1 > 0.998:
+                cross = ti.max(
+                    ti.exp(-ti.abs(sub_pos[0] - star_center[0]) * 15.0) * ti.exp(-ti.abs(sub_pos[1] - star_center[1]) * 1.5),
+                    ti.exp(-ti.abs(sub_pos[1] - star_center[1]) * 15.0) * ti.exp(-ti.abs(sub_pos[0] - star_center[0]) * 1.5)
+                )
+                intensity += cross * 2.5
+
+            col += star_col * intensity
+
+    # Distant unresolved micro-star galactic shimmer
+    shimmer_hash = fract(ti.sin(ray_dir.dot(ti.Vector([432.1, 891.4, 219.8]))) * 84321.1)
+    if shimmer_hash > 0.992:
+        col += ti.Vector([0.7, 0.75, 0.85]) * (plane_glow * 0.15 + 0.05)
+
+    return col
+
 @ti.kernel
 def render_surface_view(yaw: ti.f32, pitch: ti.f32):
     """
@@ -567,14 +639,21 @@ def render_surface_view(yaw: ti.f32, pitch: ti.f32):
 
         else:
             # -----------------------------------------------------------------
-            # DYNAMIC SKY & AUTHENTIC DOUBLE SUNSET
+            # DYNAMIC SKY & AUTHENTIC DOUBLE SUNSET WITH PROCEDURAL SKYBOX
             # -----------------------------------------------------------------
+            # Sample procedural deep-space skybox (Milky Way, Nebulae, Multi-spectral stars)
+            cosmic_sky = sample_deep_space_skybox(ray_dir)
+
             # Rayleigh & Mie atmospheric scattering gradient
             sky_h = ti.max(0.0, rd_zenith)
             # Baseline sky color transitions from deep space cobalt at zenith to warm amber at horizon
             zenith_col = ti.Vector([0.04, 0.08, 0.22])
             horizon_col = ti.Vector([0.90, 0.62, 0.36]) * ti.max(0.05, alt_a * 0.8 + 0.3)
             sky_col = zenith_col * sky_h + horizon_col * (1.0 - sky_h)
+
+            # Daylight factor: as twin stars set beneath dunes, deep-space skybox shines through!
+            daylight = clamp(alt_a * 3.5 + alt_b * 1.8 + 0.06, 0.0, 1.0)
+            sky_col = sky_col * daylight + cosmic_sky * (1.0 - daylight * 0.82)
 
             # Star A: Primary F8V Star (Angular radius ~ 0.022 rad / 1.3 deg)
             cos_theta_a = ray_dir.dot(vec_to_a)
@@ -605,17 +684,6 @@ def render_surface_view(yaw: ti.f32, pitch: ti.f32):
             # Star B Ruby Corona Halo
             mie_b = 0.0007 / (1.002 - cos_theta_b)
             sky_col += ti.Vector([1.0, 0.25, 0.05]) * (mie_b * ti.max(0.05, alt_b + 0.1))
-
-            # If both stars are below the horizon: Crisp starry desert night!
-            night_factor = clamp(1.0 - (alt_a * 4.0 + alt_b * 2.0), 0.0, 1.0)
-            if night_factor > 0.0:
-                # Procedural stars
-                p_star = ray_dir * 180.0
-                star_hash = ti.sin(p_star[0] * 12.9898 + p_star[1] * 78.233 + p_star[2] * 37.719) * 43758.5453
-                star_val = fract(star_hash)
-                if star_val > 0.995:
-                    sparkle = ti.pow((star_val - 0.995) * 200.0, 3.0)
-                    sky_col += ti.Vector([0.9, 0.95, 1.0]) * (sparkle * night_factor)
 
             col = sky_col
 
@@ -651,14 +719,8 @@ def render_system_view(cam_dist: ti.f32, cam_yaw: ti.f32, cam_pitch: ti.f32):
 
         ray_dir = (cam_fwd + uv_x * cam_right + uv_y * cam_up).normalized()
 
-        # Background: Deep space with starry background
-        p_bg = ray_dir * 120.0
-        star_hash = ti.sin(p_bg[0] * 12.9898 + p_bg[1] * 78.233 + p_bg[2] * 45.164) * 43758.5453
-        star_val = fract(star_hash)
-
-        col = ti.Vector([0.012, 0.012, 0.020])
-        if star_val > 0.994:
-            col += ti.Vector([0.8, 0.85, 1.0]) * ti.pow((star_val - 0.994) * 166.0, 2.5)
+        # Background: Procedural Deep-Space Skybox (Galactic Plane, Emission Nebulae & Multi-spectral stars)
+        col = sample_deep_space_skybox(ray_dir)
 
         # -----------------------------------------------------------------
         # REFERENCE GRID: Invariant Binary Plane Distance Rings (0.2, 0.5, 1.0, 1.5 AU)
@@ -817,6 +879,8 @@ def splat_particles_and_trails(cam_dist: ti.f32, cam_yaw: ti.f32, cam_pitch: ti.
 def main():
     print("=" * 78)
     print("  TOI-1338 CIRCUMBINARY DESERT WORLD: ASTROPHYSICS & SUNSET SIMULATION")
+    print("  * PROCEDURAL DEEP-SPACE SKYBOX: Galactic Plane, H-alpha/O-III Nebulae,")
+    print("    Multi-spectral O/B/A/G/M Starfield & Dynamic Sunset Extinction")
     print("=" * 78)
     print(" CONTROLS:")
     print("   [C]          : Switch Camera (Surface Desert View <-> Star System View)")
