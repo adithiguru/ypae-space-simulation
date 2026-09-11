@@ -321,8 +321,8 @@ def draw_hud_graphs():
                 pixels[i, j] = ti.Vector([0.25, 0.45, 0.65])
             # Internal reference lines (S = 1.0 and S = 2.0)
             # Scaling: 0 to 3.0 S_earth
-            y_s1 = 490 + int(280.0 * (1.0 / 3.0))
-            y_s2 = 490 + int(280.0 * (2.0 / 3.0))
+            y_s1 = 583
+            y_s2 = 676
             if (j == y_s1 or j == y_s2) and (i % 6 < 4):
                 pixels[i, j] += ti.Vector([0.15, 0.25, 0.35])
 
@@ -335,7 +335,7 @@ def draw_hud_graphs():
             if i == 840 or i == 1250 or j == 180 or j == 460:
                 pixels[i, j] = ti.Vector([0.25, 0.45, 0.65])
             # Critical stability limit line (e = 0.35)
-            y_ecrit = 180 + int(280.0 * (0.35 / 0.7))
+            y_ecrit = 320
             if j == y_ecrit and (i % 5 < 3):
                 # Flashing warning dashes
                 pixels[i, j] = ti.Vector([0.8, 0.25, 0.15])
@@ -345,7 +345,7 @@ def draw_hud_graphs():
     for col in range(842, 1249):
         # Progress across history window (0.0 to 1.0)
         frac = float(col - 842) / 406.0
-        step_back = int((1.0 - frac) * float(HIST_LEN - 1))
+        step_back = ti.cast((1.0 - frac) * float(HIST_LEN - 1), ti.i32)
         k = (h_now - step_back + HIST_LEN) % HIST_LEN
 
         # -------------------------------------------------------------
@@ -356,9 +356,9 @@ def draw_hud_graphs():
         val_a = hist_flux_a[k]
         val_b = hist_flux_b[k]
 
-        y_tot = int(495.0 + ti.clamp(val_tot / 3.0, 0.0, 0.96) * 265.0)
-        y_a = int(495.0 + ti.clamp(val_a / 3.0, 0.0, 0.96) * 265.0)
-        y_b = int(495.0 + ti.clamp(val_b / 3.0, 0.0, 0.96) * 265.0)
+        y_tot = ti.cast(495.0 + clamp(val_tot / 3.0, 0.0, 0.96) * 265.0, ti.i32)
+        y_a = ti.cast(495.0 + clamp(val_a / 3.0, 0.0, 0.96) * 265.0, ti.i32)
+        y_b = ti.cast(495.0 + clamp(val_b / 3.0, 0.0, 0.96) * 265.0, ti.i32)
 
         # Draw Star A flux (Warm White / Pale Gold)
         pixels[col, y_a] = ti.Vector([0.9, 0.85, 0.70])
@@ -373,7 +373,7 @@ def draw_hud_graphs():
         # -------------------------------------------------------------
         # Scale: [0.0, 0.70] mapped to [185, 455]
         val_e = hist_ecc[k]
-        y_e = int(185.0 + ti.clamp(val_e / 0.70, 0.0, 0.96) * 265.0)
+        y_e = ti.cast(185.0 + clamp(val_e / 0.70, 0.0, 0.96) * 265.0, ti.i32)
 
         # Color shifts from stable cyan to warning crimson
         col_e = ti.Vector([0.2, 0.9, 0.75])
@@ -389,6 +389,14 @@ def draw_hud_graphs():
 # =============================================================================
 # RAYMARCHING & RASTER COMPUTE SHADERS
 # =============================================================================
+@ti.func
+def clamp(val: ti.f32, min_val: ti.f32, max_val: ti.f32) -> ti.f32:
+    return ti.min(ti.max(val, min_val), max_val)
+
+@ti.func
+def fract(x: ti.f32) -> ti.f32:
+    return x - ti.floor(x)
+
 @ti.func
 def dune_height(x: ti.f32, z: ti.f32) -> ti.f32:
     """
@@ -577,7 +585,7 @@ def render_surface_view(yaw: ti.f32, pitch: ti.f32):
                 mu_limb = ti.sqrt(ti.max(0.0, 1.0 - r_disk * r_disk))
                 limb_factor = 0.4 + 0.6 * mu_limb
                 # Sunset reddening for Star A as it touches the dunes
-                redden = ti.clamp(alt_a * 5.0, 0.0, 1.0)
+                redden = clamp(alt_a * 5.0, 0.0, 1.0)
                 star_a_disk = ti.Vector([1.0, 0.75 + 0.25 * redden, 0.35 + 0.65 * redden]) * (3.5 * limb_factor)
                 sky_col += star_a_disk
 
@@ -599,12 +607,12 @@ def render_surface_view(yaw: ti.f32, pitch: ti.f32):
             sky_col += ti.Vector([1.0, 0.25, 0.05]) * (mie_b * ti.max(0.05, alt_b + 0.1))
 
             # If both stars are below the horizon: Crisp starry desert night!
-            night_factor = ti.clamp(1.0 - (alt_a * 4.0 + alt_b * 2.0), 0.0, 1.0)
+            night_factor = clamp(1.0 - (alt_a * 4.0 + alt_b * 2.0), 0.0, 1.0)
             if night_factor > 0.0:
                 # Procedural stars
                 p_star = ray_dir * 180.0
                 star_hash = ti.sin(p_star[0] * 12.9898 + p_star[1] * 78.233 + p_star[2] * 37.719) * 43758.5453
-                star_val = ti.fract(star_hash)
+                star_val = fract(star_hash)
                 if star_val > 0.995:
                     sparkle = ti.pow((star_val - 0.995) * 200.0, 3.0)
                     sky_col += ti.Vector([0.9, 0.95, 1.0]) * (sparkle * night_factor)
@@ -646,7 +654,8 @@ def render_system_view(cam_dist: ti.f32, cam_yaw: ti.f32, cam_pitch: ti.f32):
         # Background: Deep space with starry background
         p_bg = ray_dir * 120.0
         star_hash = ti.sin(p_bg[0] * 12.9898 + p_bg[1] * 78.233 + p_bg[2] * 45.164) * 43758.5453
-        star_val = ti.fract(star_hash)
+        star_val = fract(star_hash)
+
         col = ti.Vector([0.012, 0.012, 0.020])
         if star_val > 0.994:
             col += ti.Vector([0.8, 0.85, 1.0]) * ti.pow((star_val - 0.994) * 166.0, 2.5)
@@ -744,12 +753,12 @@ def splat_particles_and_trails(cam_dist: ti.f32, cam_yaw: ti.f32, cam_pitch: ti.
     """
     Project circumbinary dust particles and fading orbital trails onto the screen.
     """
-    cy = ti.cos(cam_yaw)
-    sy = ti.sin(cam_yaw)
-    cp = ti.cos(cam_pitch)
-    sp = ti.sin(cam_pitch)
+    cos_yaw = ti.cos(cam_yaw)
+    sin_yaw = ti.sin(cam_yaw)
+    cos_pitch = ti.cos(cam_pitch)
+    sin_pitch = ti.sin(cam_pitch)
 
-    cam_pos = ti.Vector([cam_dist * cp * cy, cam_dist * cp * sy, cam_dist * sp])
+    cam_pos = ti.Vector([cam_dist * cos_pitch * cos_yaw, cam_dist * cos_pitch * sin_yaw, cam_dist * sin_pitch])
     cam_target = ti.Vector([0.0, 0.0, 0.0])
     cam_fwd = (cam_target - cam_pos).normalized()
     world_up = ti.Vector([0.0, 0.0, 1.0])
@@ -767,8 +776,10 @@ def splat_particles_and_trails(cam_dist: ti.f32, cam_yaw: ti.f32, cam_pitch: ti.
         if depth > 0.1:
             rx = rel.dot(cam_right)
             ry = rel.dot(cam_up)
-            screen_x = int((rx / (depth * aspect * ti.tan(fov * 0.5)) * 0.5 + 0.5) * float(RES_W))
-            screen_y = int((ry / (depth * ti.tan(fov * 0.5)) * 0.5 + 0.5) * float(RES_H))
+            fx = (rx / (depth * aspect * ti.tan(fov * 0.5)) * 0.5 + 0.5) * float(RES_W)
+            fy = (ry / (depth * ti.tan(fov * 0.5)) * 0.5 + 0.5) * float(RES_H)
+            screen_x = ti.cast(fx, ti.i32)
+            screen_y = ti.cast(fy, ti.i32)
             if 1 <= screen_x < RES_W - 1 and 1 <= screen_y < RES_H - 1:
                 col = dust_color[k] * 0.65
                 pixels[screen_x, screen_y] += col
@@ -787,15 +798,18 @@ def splat_particles_and_trails(cam_dist: ti.f32, cam_yaw: ti.f32, cam_pitch: ti.
             if depth > 0.1:
                 rx = rel.dot(cam_right)
                 ry = rel.dot(cam_up)
-                sx = int((rx / (depth * aspect * ti.tan(fov * 0.5)) * 0.5 + 0.5) * float(RES_W))
-                sy = int((ry / (depth * ti.tan(fov * 0.5)) * 0.5 + 0.5) * float(RES_H))
-                if 1 <= sx < RES_W - 1 and 1 <= sy < RES_H - 1:
+                fx2 = (rx / (depth * aspect * ti.tan(fov * 0.5)) * 0.5 + 0.5) * float(RES_W)
+                fy2 = (ry / (depth * ti.tan(fov * 0.5)) * 0.5 + 0.5) * float(RES_H)
+                trail_px = ti.cast(fx2, ti.i32)
+                trail_py = ti.cast(fy2, ti.i32)
+                if 1 <= trail_px < RES_W - 1 and 1 <= trail_py < RES_H - 1:
                     alpha = 1.0 - float(step) / float(TRAIL_LEN)
                     pix_c = t_col * (alpha * 0.85)
-                    pixels[sx, sy] += pix_c
+                    pixels[trail_px, trail_py] += pix_c
                     if b == 2:  # Thicker trail for planet
-                        pixels[sx + 1, sy] += pix_c * 0.5
-                        pixels[sx, sy + 1] += pix_c * 0.5
+                        pixels[trail_px + 1, trail_py] += pix_c * 0.5
+                        pixels[trail_px, trail_py + 1] += pix_c * 0.5
+
 
 # =============================================================================
 # MAIN APPLICATION LOOP & INTERACTIVE CONTROLS
@@ -817,7 +831,7 @@ def main():
     # Initialize simulation physics
     current_m_b = M_B_INITIAL
     init_system(current_m_b)
-    compute_accelerations()
+    init_accelerations()
 
     # GUI Window Setup
     window = ti.ui.Window("TOI-1338: Circumbinary World & Double Sunset", (RES_W, RES_H), vsync=True)
@@ -864,7 +878,7 @@ def main():
         if window.is_pressed('r'):
             current_m_b = M_B_INITIAL
             init_system(current_m_b)
-            compute_accelerations()
+            init_accelerations()
             print("System reset to initial TOI-1338 parameters.")
         if window.is_pressed('m'):
             current_m_b = min(3.0, current_m_b + 0.05)
