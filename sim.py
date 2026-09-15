@@ -242,6 +242,7 @@ def update_telemetry_and_trails():
 
     # 1. Binary parameters
     r_bin_vec = pos[1] - pos[0]
+    v_bin_vec = vel[1] - vel[0]
     r_bin = ti.sqrt(r_bin_vec.dot(r_bin_vec) + EPSILON * EPSILON)
     star_sep[None] = r_bin
 
@@ -250,10 +251,22 @@ def update_telemetry_and_trails():
     m_tot = m_a + m_b
     mu = m_b / (m_tot + EPSILON)
 
+    # Calculate instantaneous (osculating) binary a and e
+    v_bin_sq = v_bin_vec.dot(v_bin_vec)
+    E_bin = 0.5 * v_bin_sq - (G_CONST * m_tot) / r_bin
+    
+    a_bin_cur = A_BIN
+    if E_bin < -1e-5:
+        a_bin_cur = - (G_CONST * m_tot) / (2.0 * E_bin)
+
+    h_bin = r_bin_vec.cross(v_bin_vec)
+    e_bin_vec = (v_bin_vec.cross(h_bin)) / (G_CONST * m_tot) - r_bin_vec / r_bin
+    e_bin_cur = ti.sqrt(e_bin_vec.dot(e_bin_vec))
+
     # Holman & Wiegert (1999) Critical Stability Semi-Major Axis for Circumbinary Systems
     # a_crit = a_bin * (1.60 + 5.10*e - 2.22*e^2 + 4.12*mu - 4.27*e*mu - 5.09*mu^2 + 4.61*e^2*mu^2)
-    e_b = E_BIN
-    a_crit = A_BIN * (1.60 + 5.10 * e_b - 2.22 * e_b * e_b + 4.12 * mu 
+    e_b = e_bin_cur
+    a_crit = a_bin_cur * (1.60 + 5.10 * e_b - 2.22 * e_b * e_b + 4.12 * mu 
                       - 4.27 * e_b * mu - 5.09 * mu * mu + 4.61 * e_b * e_b * mu * mu)
     a_crit_field[None] = a_crit
 
@@ -994,10 +1007,12 @@ def main():
         if window.is_pressed('m'):
             current_m_b = min(3.0, current_m_b + 0.05)
             update_binary_mass(current_m_b)
+            init_accelerations()
             print(f"Star B Mass increased to: {current_m_b:.3f} M_sun (Resonance experiment)")
         if window.is_pressed('n'):
             current_m_b = max(0.05, current_m_b - 0.05)
             update_binary_mass(current_m_b)
+            init_accelerations()
             print(f"Star B Mass decreased to: {current_m_b:.3f} M_sun")
         if window.is_pressed('q'):
             time_scale = max(0.1, time_scale * 0.85)
@@ -1099,9 +1114,11 @@ def main():
             if gui.button("+0.05 M_sun to Star B (M)"):
                 current_m_b = min(3.0, current_m_b + 0.05)
                 update_binary_mass(current_m_b)
+                init_accelerations()
             if gui.button("-0.05 M_sun to Star B (N)"):
                 current_m_b = max(0.05, current_m_b - 0.05)
                 update_binary_mass(current_m_b)
+                init_accelerations()
 
             gui.text("----------------------------------------")
             gui.text("--- ORBITAL STABILITY (Holman & Wiegert 1999) ---")
@@ -1109,10 +1126,11 @@ def main():
             gui.text(f"Planet Orbit Distance r_p        : {r_p:.4f} AU")
             gui.text(f"Planet Osculating Eccentricity e : {ecc:.4f}")
 
+            p_sma = planet_sma[None]
             # Dynamic Stability Status Badge
-            if ecc < 0.12 and r_p > 1.3 * a_crit:
+            if p_sma > 1.2 * a_crit:
                 gui.text("Status: [BOUND / WITHIN STABLE REGION (Heuristic)]")
-            elif ecc < 0.35 and r_p > a_crit:
+            elif p_sma > a_crit:
                 gui.text("Status: [PERTURBED REGION (Heuristic)]")
             else:
                 gui.text("Status: [UNSTABLE / EJECTION RISK (Heuristic)]")

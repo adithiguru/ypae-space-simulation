@@ -9,7 +9,7 @@ A scientifically grounded, cinematic simulation of the real observed binary star
   * **TOI-1338 A**: $1.127\,M_\odot$, F8V primary, $T_{\text{eff}} \approx 6050\,\text{K}$.
   * **TOI-1338 B**: $0.299\,M_\odot$, M-dwarf secondary, $T_{\text{eff}} \approx 3200\,\text{K}$.
   * **Orbit**: $a_{\text{bin}} = 0.1321\,\text{AU}$, $e_{\text{bin}} = 0.1555$, $P \approx 14.61\,\text{days}$.
-  *(Baseline parameters match the ESPRESSO/SB2 dynamical measurements from Standing et al. 2023).*
+  *(Baseline uses published TOI-1338 parameters drawn from the literature, including the Standing et al. (2023) dynamical solution).*
 
 ### HYPOTHETICAL
 * **1 Earth-Mass Desert Planet**: Completely invented for visual and habitability demonstration. Do not confuse this with the actual TOI-1338 b (Saturn-mass) or BEBOP-1c (Gas Giant).
