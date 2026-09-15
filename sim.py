@@ -878,6 +878,49 @@ def splat_particles_and_trails(cam_dist: ti.f32, cam_yaw: ti.f32, cam_pitch: ti.
 
 
 # =============================================================================
+# DYNAMIC EXPERIMENT & INTEGRATOR SAFEGUARDS
+# =============================================================================
+@ti.kernel
+def update_binary_mass(new_m_b: ti.f32):
+    m_a = mass[0]
+    m_b_old = mass[1]
+    M_old = m_a + m_b_old
+    M_new = m_a + new_m_b
+
+    r_a = pos[0]
+    r_b = pos[1]
+    v_a = vel[0]
+    v_b = vel[1]
+
+    # Current barycenter of the binary
+    r_bary = (m_a * r_a + m_b_old * r_b) / M_old
+    v_bary = (m_a * v_a + m_b_old * v_b) / M_old
+
+    # Relative position and velocity
+    r_rel = r_b - r_a
+    v_rel = v_b - v_a
+
+    # Rebalance positions and velocities around the current barycenter
+    # to conserve total linear momentum and prevent artificial drift.
+    pos[0] = r_bary - (new_m_b / M_new) * r_rel
+    pos[1] = r_bary + (m_a / M_new) * r_rel
+
+    vel[0] = v_bary - (new_m_b / M_new) * v_rel
+    vel[1] = v_bary + (m_a / M_new) * v_rel
+
+    # Finally update the mass field
+    mass[1] = new_m_b
+
+@ti.kernel
+def get_min_massive_dist() -> ti.f32:
+    min_d = 1000.0
+    for i in range(N_BODIES):
+        for j in range(i + 1, N_BODIES):
+            d = (pos[i] - pos[j]).norm()
+            ti.atomic_min(min_d, d)
+    return min_d
+
+# =============================================================================
 # MAIN APPLICATION LOOP & INTERACTIVE CONTROLS
 # =============================================================================
 def main():
@@ -950,11 +993,11 @@ def main():
             print("System reset to initial TOI-1338 parameters.")
         if window.is_pressed('m'):
             current_m_b = min(3.0, current_m_b + 0.05)
-            mass[1] = current_m_b
+            update_binary_mass(current_m_b)
             print(f"Star B Mass increased to: {current_m_b:.3f} M_sun (Resonance experiment)")
         if window.is_pressed('n'):
             current_m_b = max(0.05, current_m_b - 0.05)
-            mass[1] = current_m_b
+            update_binary_mass(current_m_b)
             print(f"Star B Mass decreased to: {current_m_b:.3f} M_sun")
         if window.is_pressed('q'):
             time_scale = max(0.1, time_scale * 0.85)
@@ -986,8 +1029,20 @@ def main():
         # -----------------------------------------------------------------
         if not paused:
             dt = dt_base * time_scale
-            for _ in range(substeps):
-                symplectic_step(dt)
+            min_d = get_min_massive_dist()
+            
+            # Subdivide timesteps during close approaches for numerical robustness
+            multiplier = 1
+            if min_d < 0.05:
+                multiplier = 10
+            elif min_d < 0.15:
+                multiplier = 4
+                
+            dynamic_substeps = substeps * multiplier
+            actual_dt = dt / float(multiplier)
+            
+            for _ in range(dynamic_substeps):
+                symplectic_step(actual_dt)
             update_telemetry_and_trails()
 
         # Update telemetry history for GUI graphs
@@ -1025,13 +1080,15 @@ def main():
         f_tot = flux_tot[None]
 
         with gui.sub_window("TOI-1338 Telemetry & Scientific Lab", 0.02, 0.02, 0.36, 0.94):
-            gui.text("=== TOI-1338 CIRCUMBINARY SYSTEM ===")
+            gui.text("=== TOI-1338 SYSTEM (Observed Binaries) ===")
             gui.text(f"Sim Time: Year {cur_years:.2f} ({cur_days:.1f} Earth Days)")
             gui.text(f"View: {'[SURFACE DESERT VIEW]' if cam_mode == 0 else '[STAR SYSTEM ORBIT]'}")
 
             if gui.button("Toggle View Mode (C)"):
                 cam_mode = 1 - cam_mode
 
+            gui.text("----------------------------------------")
+            gui.text("--- HYPOTHETICAL PLANET (1 Earth-Mass) ---")
             gui.text("----------------------------------------")
             gui.text("--- STELLAR MASS EXPERIMENT ---")
             gui.text(f"Star A (F8V Primary)  : {mass[0]:.3f} M_sun")
@@ -1041,10 +1098,10 @@ def main():
 
             if gui.button("+0.05 M_sun to Star B (M)"):
                 current_m_b = min(3.0, current_m_b + 0.05)
-                mass[1] = current_m_b
+                update_binary_mass(current_m_b)
             if gui.button("-0.05 M_sun to Star B (N)"):
                 current_m_b = max(0.05, current_m_b - 0.05)
-                mass[1] = current_m_b
+                update_binary_mass(current_m_b)
 
             gui.text("----------------------------------------")
             gui.text("--- ORBITAL STABILITY (Holman & Wiegert 1999) ---")
@@ -1054,11 +1111,11 @@ def main():
 
             # Dynamic Stability Status Badge
             if ecc < 0.12 and r_p > 1.3 * a_crit:
-                gui.text("Status: [STABLE CIRCUMBINARY ORBIT]")
+                gui.text("Status: [BOUND / WITHIN STABLE REGION (Heuristic)]")
             elif ecc < 0.35 and r_p > a_crit:
-                gui.text("Status: [RESONANT PERTURBATION DETECTED]")
+                gui.text("Status: [PERTURBED REGION (Heuristic)]")
             else:
-                gui.text("Status: [CHAOTIC SCATTERING / EJECTION RISK!]")
+                gui.text("Status: [UNSTABLE / EJECTION RISK (Heuristic)]")
 
             gui.text("----------------------------------------")
             gui.text("--- COMBINED STELLAR IRRADIANCE ---")
@@ -1066,7 +1123,7 @@ def main():
             gui.text(f"Flux Star B  : {flux_B[None]:.3f} S_earth")
             gui.text(f"Combined S   : {f_tot:.3f} S_earth")
             t_eq_c = 278.0 * (f_tot ** 0.25) - 273.15
-            gui.text(f"Estimated Eq Temp: {t_eq_c:.1f} °C (Baking Desert)")
+            gui.text(f"Estimated Eq Temp: {t_eq_c:.1f} °C (Luminosity Model: L ∝ M^4)")
 
             gui.text("----------------------------------------")
             gui.text("--- ONSCREEN HUD TELEMETRY GRAPHS ---")

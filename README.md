@@ -2,37 +2,30 @@
 
 A scientifically grounded, cinematic simulation of the real observed binary star system **TOI-1338** and a hypothetical Earth-sized desert planet orbiting its circumbinary barycenter, built in Python + Taichi.
 
-## Features
+## Scientific Implementation
 
-- **Real Observed Binary (TOI-1338)**:
-  - **TOI-1338 A**: F8V primary star ($1.127\,M_\odot$, $T_{\text{eff}} \approx 6050\,\text{K}$, $L \approx 2.02\,L_\odot$) with radiant warm-white light, limb darkening, and golden corona.
-  - **TOI-1338 B**: M-dwarf companion ($0.299\,M_\odot$, $T_{\text{eff}} \approx 3200\,\text{K}$, $L \approx 0.0085\,L_\odot$) with deep ruby-crimson illumination and flares.
-  - **Binary Orbit**: $a_{\text{bin}} = 0.1321\,\text{AU}$, $e_{\text{bin}} = 0.1555$, period $P = 14.61\,\text{days}$.
-- **Emergent Double Sunset (Surface View)**:
-  - View from the surface of the rotating desert world (latitude $25^\circ\text{ N}$, $16^\circ$ axial obliquity).
-  - Raymarched dunes, wind ripples, sandstone monoliths, and dynamic Rayleigh & Mie dust atmospheric scattering.
-  - Star A and Star B rise, traverse, and set naturally based on instantaneous line-of-sight vectors and planetary rotation, creating an authentic, unscripted double sunset.
-- **Star System Exploration (Space View)**:
-  - Full 3D exploration around the binary barycenter: 3D stars, lit desert planet with day/night terminator and atmospheric rim glow.
-  - Fading multi-color orbital history ribbon trails (gold for Star A, crimson for Star B, cyan for the desert planet).
-  - Circumbinary dust/asteroid swarm (3,072 particles) perturbed by the binary gravitational potential.
-  - Concentric distance reference rings at $0.2$, $0.5$, $1.0$, and $1.5\,\text{AU}$.
-- **Interactive Gravitational Mass Experiment**:
-  - Dynamically alter Star B's mass ($M/N$ keys or GUI buttons) and observe the real gravitational response: resonance pumping, eccentricity excitation, close encounters, or interstellar ejection.
-- **Procedural Deep-Space Skybox (Zero-Asset, Zero-VRAM)**:
-  - Scientifically calibrated celestial sphere depicting the Milky Way and deep space as seen from the TOI-1338 system (~1,300 light-years away).
-  - Tilted galactic disc plane with diffuse interstellar dust lanes and galactic core bulge glow.
-  - Multi-frequency ionized emission nebulae: Hydrogen-Alpha ($656.3\,\text{nm}$ deep crimson) and Oxygen-III ($500.7\,\text{nm}$ teal/cyan).
-  - Multi-spectral stellar classification: O/B blue giants, A/F white stars, G-class solar yellows, and M-class red dwarfs, with sub-pixel diffraction spikes on prominent stars.
-  - Dynamic atmospheric extinction: seamlessly emerges above the desert dunes as the double suns set and day turns into night.
-- **Scientific HUD & Live Telemetry Graphs**:
-  - Real-time telemetry: simulation days/years, stellar masses, binary separation, orbital eccentricity, Holman & Wiegert (1999) critical stability radius $a_{\text{crit}}$, and combined stellar flux ($S/S_\oplus$).
-  - Live vector graphs of combined & individual stellar insolation $S_{\text{tot}}(t)$ and planetary eccentricity $e(t)$.
+### OBSERVED
+* **TOI-1338 Stellar Parameters and Binary Orbit**:
+  * **TOI-1338 A**: $1.127\,M_\odot$, F8V primary, $T_{\text{eff}} \approx 6050\,\text{K}$.
+  * **TOI-1338 B**: $0.299\,M_\odot$, M-dwarf secondary, $T_{\text{eff}} \approx 3200\,\text{K}$.
+  * **Orbit**: $a_{\text{bin}} = 0.1321\,\text{AU}$, $e_{\text{bin}} = 0.1555$, $P \approx 14.61\,\text{days}$.
+  *(Baseline parameters match the ESPRESSO/SB2 dynamical measurements from Standing et al. 2023).*
 
-## Approximations & Omissions
+### HYPOTHETICAL
+* **1 Earth-Mass Desert Planet**: Completely invented for visual and habitability demonstration. Do not confuse this with the actual TOI-1338 b (Saturn-mass) or BEBOP-1c (Gas Giant).
+* **1.10 AU Orbit**: Chosen to place the planet securely in the circumbinary habitable zone ($S \approx 1.5 - 1.7 S_\oplus$).
+* **16° Obliquity**: Chosen for the day/night and seasonal visual effect.
+* **Rotation Period**: Scaled for rapid visual diurnal cycles.
+* **Procedural Desert Terrain**: Fictional landscape for the surface camera.
 
-> *We approximated the gravitational interaction using a point-mass Newtonian three-body model with a symplectic Velocity Verlet integrator and empirical Holman–Wiegert stability boundary, scaling Star B's luminosity as $L \propto M^4$ during mass modification.*  
-> *We left out general relativistic precession, tidal dissipation, and planetary atmospheric greenhouse feedbacks.*
+### MODELING APPROXIMATIONS
+* **L $\propto$ M^4 Luminosity Scaling**: Used as an interactive main-sequence mass-luminosity approximation during the mass perturbation experiment, not as a strict observed luminosity law for TOI-1338 B.
+* **Atmospheric Visual Effects**: Rayleigh and Mie scattering models to simulate atmospheric dust.
+* **Real-Time Stability Diagnostic**: A real-time heuristic diagnostic based on current orbital state and Holman & Wiegert (1999) critical semi-major axis. It is NOT a proof of million-year N-body stability.
+* **Integration**: Point-mass Newtonian three-body model with a symplectic Velocity Verlet (KDK) integrator and adaptive close-approach sub-stepping.
+
+### INTERACTIVE EXPERIMENT
+* **Star B Mass Perturbation**: Dynamically alter Star B's gravitational mass ($M/N$ keys) to investigate the resulting gravitational response (resonance pumping, eccentricity excitation, close encounters). The binary barycenter and velocities are dynamically rebalanced to preserve the center-of-mass frame and avoid artificial bulk momentum drift. The physical radius and effective temperature of Star B remain fixed to scientifically isolate the mass effect, while its approximated luminosity updates.
 
 ## Requirements & Installation
 
