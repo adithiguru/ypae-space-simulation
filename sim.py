@@ -15,10 +15,14 @@ Physics & Celestial Mechanics:
 """
 
 import taichi as ti
+# Initialize Taichi with a safe memory configuration.
+# Attempt GPU first; if unavailable, fall back to CPU.
+# Use a reduced memory fraction to avoid large allocations on Windows.
 try:
-    ti.init(arch=ti.gpu)
-except Exception:
-    ti.init(arch=ti.cpu)
+    ti.init(arch=ti.gpu, device_memory_fraction=0.5)
+except Exception as e:
+    print("GPU init failed:", e)
+    ti.init(arch=ti.cpu, device_memory_fraction=0.5)
     print("Running on CPU, expect lower FPS. Lower the body count if it crawls.")
 
 import numpy as np
@@ -886,7 +890,7 @@ def main():
     print("   [C]          : Switch Camera (Surface Desert View <-> Star System View)")
     print("   [SPACE]      : Pause / Resume Simulation")
     print("   [M] / [N]    : Increase / Decrease Star B Mass (+/- 0.05 M_sun)")
-    print("   [[] / []]    : Slow down / Speed up simulation time")
+    print("   [Q] / [E]    : Slow down / Speed up simulation time")
     print("   [R]          : Reset system to original TOI-1338 parameters")
     print("   Mouse Drag   : Look around (Surface View) or Orbit camera (System View)")
     print("   Mouse Scroll : Zoom camera in / out (System View)")
@@ -952,9 +956,9 @@ def main():
             current_m_b = max(0.05, current_m_b - 0.05)
             mass[1] = current_m_b
             print(f"Star B Mass decreased to: {current_m_b:.3f} M_sun")
-        if window.is_pressed('['):
+        if window.is_pressed('q'):
             time_scale = max(0.1, time_scale * 0.85)
-        if window.is_pressed(']'):
+        if window.is_pressed('e'):
             time_scale = min(15.0, time_scale * 1.15)
 
         # Mouse drag for view control
@@ -1078,7 +1082,7 @@ def main():
                 init_system(current_m_b)
                 init_accelerations()
 
-            gui.text(f"Time Warp: {time_scale:.1f}x (Keys: [ / ])")
+            gui.text(f"Time Warp: {time_scale:.1f}x (Keys: Q / E)")
 
         window.show()
 
