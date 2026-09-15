@@ -58,7 +58,7 @@ py -3.12 sim.py
 | **`C`** | Toggle Camera View (**Surface Desert View** $\longleftrightarrow$ **Star System Orbit**) |
 | **`SPACE`** | Pause / Resume simulation |
 | **`M` / `N`** | Increase / Decrease Star B Mass by $\pm 0.05\,M_\odot$ (Resonance experiment) |
-| **`[` / `]`** | Slow down / Speed up simulation time warp |
+| **`Q` / `E`** | Slow down / Speed up simulation time warp |
 | **`R`** | Reset simulation to initial TOI-1338 baseline parameters |
 | **Mouse Left Drag** | Look around horizon/sky (Surface View) or Orbit camera (System View) |
 | **`W` / `S`** or **$\uparrow$ / $\downarrow$** | Zoom in / Zoom out (System View) |
